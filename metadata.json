@@ -1,0 +1,6 @@
+{
+  "name": "UFOCUS",
+  "description": "A professional, high-fidelity personal learning planner with customized study plans, an integrated interactive Pomodoro focus timer, and an immersive study workspace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

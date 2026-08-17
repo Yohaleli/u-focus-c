@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "Habit": {
+      "title": "Habit",
+      "description": "A habit tracked by the user",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "isCustom": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "createdAt"]
+    },
+    "HabitRecord": {
+      "title": "Habit Record",
+      "description": "Daily record for a habit",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["done", "missed", "empty"] },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["status", "updatedAt"]
+    },
+    "SessionLog": {
+      "title": "Session Log",
+      "description": "A completed focus session",
+      "type": "object",
+      "properties": {
+        "habitId": { "type": "string", "maxLength": 100 },
+        "durationMinutes": { "type": "number" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["durationMinutes", "timestamp"]
+    },
+    "UserSettings": {
+      "title": "User Settings",
+      "description": "User preferences",
+      "type": "object",
+      "properties": {
+        "dailyGoalHours": { "type": "number" },
+        "customBg": { "type": "string", "maxLength": 500 },
+        "quoteCategory": { "type": "string", "maxLength": 50 },
+        "calendarType": { "type": "string", "enum": ["gregorian", "ethiopian"] },
+        "quoteLanguage": { "type": "string", "enum": ["en", "es", "fr", "de", "it", "pt", "ru", "zh", "ja", "ko"] },
+        "ambientSound": { "type": "string", "maxLength": 50 },
+        "volume": { "type": "number" },
+        "spotifyUrl": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/habits/{habitId}": {
+      "schema": { "$ref": "#/entities/Habit" },
+      "description": "User's custom habits"
+    },
+    "/users/{userId}/habits/{habitId}/records/{dateKey}": {
+      "schema": { "$ref": "#/entities/HabitRecord" },
+      "description": "Daily record status for a specific habit"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/SessionLog" },
+      "description": "User's completed focus sessions"
+    },
+    "/users/{userId}/settings/preferences": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "User's app preferences"
+    }
+  }
+}

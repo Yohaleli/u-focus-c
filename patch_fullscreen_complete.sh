@@ -1,0 +1,1 @@
+sed -i 's/const \[showTasks, setShowTasks\] = useState(false);/const [showTasks, setShowTasks] = useState(false);\n  const [showCompletion, setShowCompletion] = useState(false);\n  const [sessionNotes, setSessionNotes] = useState("");\n/' src/components/FullScreenRoom.tsx

@@ -1,0 +1,620 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Check, X, Plus, Trash2, RotateCcw, Sparkles, FileText, LayoutGrid } from 'lucide-react';
+
+interface Habit {
+  id: string;
+  name: string;
+  isCustom?: boolean;
+}
+
+// Record mapping HabitID to DateKey (YYYY-MM-DD) to status: 'done' | 'missed' | 'empty'
+type HabitHistory = Record<string, Record<string, 'done' | 'missed' | 'empty'>>;
+
+const DEFAULT_HABITS: Habit[] = [
+  { id: 'h1', name: 'Wake up early' },
+  { id: 'h2', name: 'Cold shower' },
+  { id: 'h3', name: 'Workout' },
+  { id: 'h4', name: 'Read 20 pages' },
+  { id: 'h5', name: 'No sugar' },
+  { id: 'h6', name: 'Meditate 10 min' },
+  { id: 'h7', name: 'Drink 3L water' },
+  { id: 'h8', name: 'No phone first hour' },
+  { id: 'h9', name: 'Journaling' },
+  { id: 'h10', name: 'Eat clean' },
+  { id: 'h11', name: 'Daily walk' },
+  { id: 'h12', name: 'Push through hard days' },
+  { id: 'h13', name: 'No alcohol' },
+  { id: 'h14', name: 'Sleep by 10:30' },
+  { id: 'h15', name: 'Plan tomorrow today' },
+];
+
+const GREGORIAN_MONTHS = [
+  { name: 'January', value: 0, days: 31 },
+  { name: 'February', value: 1, days: 28 },
+  { name: 'March', value: 2, days: 31 },
+  { name: 'April', value: 3, days: 30 },
+  { name: 'May', value: 4, days: 31 },
+  { name: 'June', value: 5, days: 30 },
+  { name: 'July', value: 6, days: 31 },
+  { name: 'August', value: 7, days: 31 },
+  { name: 'September', value: 8, days: 30 },
+  { name: 'October', value: 9, days: 31 },
+  { name: 'November', value: 10, days: 30 },
+  { name: 'December', value: 11, days: 31 },
+];
+
+const ETHIOPIAN_MONTHS = [
+  { name: 'Meskerem', value: 0, days: 30 },
+  { name: 'Tikimt', value: 1, days: 30 },
+  { name: 'Hidar', value: 2, days: 30 },
+  { name: 'Tahsas', value: 3, days: 30 },
+  { name: 'Tir', value: 4, days: 30 },
+  { name: 'Yakatit', value: 5, days: 30 },
+  { name: 'Maggabit', value: 6, days: 30 },
+  { name: 'Miyazya', value: 7, days: 30 },
+  { name: 'Ginbot', value: 8, days: 30 },
+  { name: 'Sene', value: 9, days: 30 },
+  { name: 'Hamle', value: 10, days: 30 },
+  { name: 'Nehasa', value: 11, days: 30 },
+  { name: 'Pagume', value: 12, days: 5 },
+];
+
+export default function HabitTracker({ calendarType = 'gregorian' }: { calendarType?: 'gregorian' | 'ethiopian' }) {
+  const currentLocalDate = useMemo(() => new Date(), []);
+  
+  const currentMonthsList = calendarType === 'ethiopian' ? ETHIOPIAN_MONTHS : GREGORIAN_MONTHS;
+
+  const [selectedYear, setSelectedYear] = useState<number>(() => currentLocalDate.getFullYear());
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(() => currentLocalDate.getMonth());
+  
+  useEffect(() => {
+    if (calendarType === 'ethiopian' && selectedMonthIdx > 12) {
+      setSelectedMonthIdx(12);
+    } else if (calendarType === 'gregorian' && selectedMonthIdx > 11) {
+      setSelectedMonthIdx(11);
+    }
+  }, [calendarType, selectedMonthIdx]);
+  
+  // Custom & Default Habits list state
+  const [habits, setHabits] = useState<Habit[]>(() => {
+    try {
+      const stored = localStorage.getItem('aura_habits_list');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return DEFAULT_HABITS;
+  });
+
+  // Habit history cell logs state
+  const [history, setHistory] = useState<HabitHistory>(() => {
+    try {
+      const stored = localStorage.getItem('aura_habits_history');
+      if (stored) return JSON.parse(stored);
+    } catch (_) {}
+    return {};
+  });
+
+  const [newHabitName, setNewHabitName] = useState('');
+  const [confirmDeleteHabitId, setConfirmDeleteHabitId] = useState<string | null>(null);
+  const [confirmResetMonth, setConfirmResetMonth] = useState(false);
+
+  // Style selection state: 'paper' (authentic loose leaf) vs 'dark-glass' (transparent glassmorphism)
+  const [trackerStyle, setTrackerStyle] = useState<'paper' | 'dark-glass'>('paper');
+
+  // Persist habits list
+  useEffect(() => {
+    localStorage.setItem('aura_habits_list', JSON.stringify(habits));
+  }, [habits]);
+
+  // Persist history
+  useEffect(() => {
+    localStorage.setItem('aura_habits_history', JSON.stringify(history));
+  }, [history]);
+
+  // Persist chosen tracker style
+  useEffect(() => {
+    localStorage.setItem('aura_habits_style', trackerStyle);
+  }, [trackerStyle]);
+
+  // Handle leap years dynamically
+  const daysInMonth = useMemo(() => {
+    if (calendarType === 'gregorian' && selectedMonthIdx === 1) {
+      const isLeapYear = (selectedYear % 4 === 0 && selectedYear % 100 !== 0) || (selectedYear % 400 === 0);
+      return isLeapYear ? 29 : 28;
+    }
+    if (calendarType === 'ethiopian' && selectedMonthIdx === 12) {
+      // Simplistic leap year for Ethiopian
+      return (selectedYear % 4 === 3) ? 6 : 5;
+    }
+    return currentMonthsList[selectedMonthIdx]?.days || 30;
+  }, [selectedMonthIdx, selectedYear, calendarType, currentMonthsList]);
+
+  // Format Helper for date keys (YYYY-MM-DD)
+  const getDateKey = (day: number) => {
+    const y = selectedYear;
+    const m = String(selectedMonthIdx + 1).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  // Cell status toggling: 'empty' -> 'done' -> 'missed' -> 'empty'
+  const toggleCell = (habitId: string, day: number) => {
+    const dateKey = getDateKey(day);
+    setHistory((prev) => {
+      const habitRecord = prev[habitId] || {};
+      const currentStatus = habitRecord[dateKey] || 'empty';
+      let nextStatus: 'done' | 'missed' | 'empty' = 'empty';
+
+      if (currentStatus === 'empty') {
+        nextStatus = 'done';
+      } else if (currentStatus === 'done') {
+        nextStatus = 'missed';
+      } else {
+        nextStatus = 'empty';
+      }
+
+      return {
+        ...prev,
+        [habitId]: {
+          ...habitRecord,
+          [dateKey]: nextStatus,
+        },
+      };
+    });
+  };
+
+  // Add a brand new habit
+  const handleAddHabit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newHabitName.trim()) return;
+
+    const newHabit: Habit = {
+      id: `custom-${Date.now()}`,
+      name: newHabitName.trim(),
+      isCustom: true,
+    };
+
+    setHabits((prev) => [...prev, newHabit]);
+    setNewHabitName('');
+  };
+
+  // Delete custom habit
+  const handleDeleteHabit = (id: string) => {
+    setHabits((prev) => prev.filter((h) => h.id !== id));
+    setHistory((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+  };
+
+  // Stats calculation for the chosen view context
+  const monthlyStats = useMemo(() => {
+    let totalDone = 0;
+    let totalMissed = 0;
+    let totalTracked = 0;
+
+    const prefix = `${selectedYear}-${String(selectedMonthIdx + 1).padStart(2, '0')}`;
+
+    habits.forEach((habit) => {
+      const records = history[habit.id] || {};
+      Object.keys(records).forEach((dateKey) => {
+        if (dateKey.startsWith(prefix)) {
+          totalTracked++;
+          if (records[dateKey] === 'done') totalDone++;
+          if (records[dateKey] === 'missed') totalMissed++;
+        }
+      });
+    });
+
+    const completionRate = totalTracked > 0 ? Math.round((totalDone / (totalDone + totalMissed || 1)) * 100) : 0;
+
+    return {
+      totalDone,
+      totalMissed,
+      completionRate,
+    };
+  }, [history, habits, selectedMonthIdx, selectedYear]);
+
+  // Highlight active today column
+  const todayDayNum = useMemo(() => {
+    const isCurrentYear = currentLocalDate.getFullYear() === selectedYear;
+    const isCurrentMonth = currentLocalDate.getMonth() === selectedMonthIdx;
+    return isCurrentYear && isCurrentMonth ? currentLocalDate.getDate() : null;
+  }, [currentLocalDate, selectedMonthIdx, selectedYear]);
+
+  const activeMonthName = useMemo(() => {
+    return currentMonthsList[selectedMonthIdx]?.name || '';
+  }, [selectedMonthIdx, currentMonthsList]);
+
+  return (
+    <div 
+      id="habit-tracker-container" 
+      className={`relative w-full rounded-3xl p-6 sm:p-10 transition-all duration-500 overflow-hidden bg-transparent ${
+        trackerStyle === 'paper' 
+          ? 'text-white pl-12 sm:pl-16' 
+          : 'text-white pl-6 sm:p-8'
+      }`}
+    >
+      
+      {/* Binder Ring Punch Holes on Left Margin (only displayed in Paper theme to replicate realistic notebook paper) */}
+      {trackerStyle === 'paper' && (
+        <div className="absolute left-0 top-0 bottom-0 w-10 flex flex-col justify-around items-center py-16 pointer-events-none select-none z-20">
+          <div className="w-4.5 h-4.5 rounded-full bg-white/20 shadow-[inset_0_3px_5px_rgba(0,0,0,0.9)] border border-white/20" />
+          <div className="w-4.5 h-4.5 rounded-full bg-white/20 shadow-[inset_0_3px_5px_rgba(0,0,0,0.9)] border border-white/20" />
+          <div className="w-4.5 h-4.5 rounded-full bg-white/20 shadow-[inset_0_3px_5px_rgba(0,0,0,0.9)] border border-white/20" />
+        </div>
+      )}
+
+      {/* Design Selector & Utility Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/30/30 dark:border-white/10 pb-5 mb-8">
+
+        {/* Dynamic Month/Year Pickers */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Month Dropdown */}
+          <div className={`flex items-center gap-1.5 border rounded-full px-3 py-1 transition-colors ${
+            trackerStyle === 'paper' ? 'bg-white/5 backdrop-blur-md border-white/30 text-white/90' : 'bg-white/5 backdrop-blur-md border-white/10 text-white'
+          }`}>
+            <span className="font-mono text-[9px] uppercase tracking-wider opacity-60">Month:</span>
+            <select
+              value={selectedMonthIdx}
+              onChange={(e) => setSelectedMonthIdx(Number(e.target.value))}
+              className="bg-transparent font-mono text-[10px] uppercase tracking-wider focus:outline-none cursor-pointer font-bold"
+            >
+              {currentMonthsList.map((m) => (
+                <option key={m.value} value={m.value} className="bg-white/20 text-white">
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year Dropdown */}
+          <div className={`flex items-center gap-1.5 border rounded-full px-3 py-1 transition-colors ${
+            trackerStyle === 'paper' ? 'bg-white/5 backdrop-blur-md border-white/30 text-white/90' : 'bg-white/5 backdrop-blur-md border-white/10 text-white'
+          }`}>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="bg-transparent font-mono text-[10px] uppercase tracking-wider focus:outline-none cursor-pointer font-bold"
+            >
+              {[2025, 2026, 2027].map((y) => (
+                <option key={y} value={y} className="bg-white/20 text-white">
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Realistic Loose Leaf Paper Header (Title centered with double underline) */}
+      <div className="flex flex-col items-center text-center space-y-4 mb-10 select-none">
+        <div className="relative inline-block px-4">
+          <h2 className={`font-bold tracking-widest leading-none ${
+            trackerStyle === 'paper' 
+              ? 'font-handwritten text-4xl sm:text-5xl text-white' 
+              : 'font-mono text-4xl sm:text-4xl text-white uppercase'
+          }`}>
+            Habit Tracker
+          </h2>
+          {/* Double underline matching handwritten notebook style */}
+          {trackerStyle === 'paper' ? (
+            <div className="w-full mt-2.5 space-y-1">
+              <div className="w-full h-[2px] bg-white/20 rounded-full" />
+              <div className="w-[85%] h-[1.5px] bg-white/5 rounded-full mx-auto" />
+            </div>
+          ) : (
+            <div className="w-20 h-[3px] bg-white mx-auto mt-3 rounded-full" />
+          )}
+        </div>
+
+        {/* Month Title underlined representation on the right side */}
+        <div className="flex items-center gap-2 pt-2">
+          <span className={`text-[11px] font-mono uppercase tracking-wider ${
+            trackerStyle === 'paper' ? 'text-white/70' : 'text-white/40'
+          }`}>
+            Month:
+          </span>
+          <span className={`px-4 py-0.5 border-b-2 font-bold ${
+            trackerStyle === 'paper' 
+              ? 'font-handwritten text-2xl text-white border-white/70' 
+              : 'font-mono text-base text-white border-white/20'
+          }`}>
+            {activeMonthName.toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      {/* Habit Grid Frame with custom scroll wrapper */}
+      <div className={`overflow-x-auto border rounded-2xl shadow-inner custom-scrollbar ${
+        trackerStyle === 'paper' 
+          ? 'bg-white/80 border-white/20 text-white' 
+          : 'bg-white/5 backdrop-blur-md border-white/20 text-white'
+      }`}>
+        <table className="w-full border-separate border-spacing-0 select-none">
+          <thead>
+            <tr className={`border-b ${
+              trackerStyle === 'paper' ? 'border-white/20 bg-transparent' : 'border-white/20 bg-white/5 backdrop-blur-md'
+            }`}>
+              {/* Header column representing Habits */}
+              <th className={`p-4 text-left text-[11px] font-bold uppercase tracking-widest min-w-[200px] border-r-2 ${
+                trackerStyle === 'paper' 
+                  ? 'font-handwritten text-white/80 border-white/30' 
+                  : 'font-mono text-white/50 border-white/20 shadow-md'
+              }`}>
+                Habits
+              </th>
+              
+              {/* Day numbers 1-31 */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const dayNum = i + 1;
+                const isToday = dayNum === todayDayNum;
+                return (
+                  <th
+                    key={dayNum}
+                    className={`p-2 text-center font-mono text-[10px] font-bold min-w-[32px] ${
+                      isToday 
+                        ? trackerStyle === 'paper' 
+                          ? 'bg-white/10 backdrop-blur-md text-white font-extrabold border-x border-white/20' 
+                          : 'bg-white/5 text-white border-x border-white/10'
+                        : trackerStyle === 'paper'
+                          ? 'text-white/60'
+                          : 'text-white/40'
+                    }`}
+                  >
+                    {dayNum}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {habits.map((habit) => {
+              const records = history[habit.id] || {};
+              return (
+                <tr
+                  key={habit.id}
+                  className={`border-b transition-colors ${
+                    trackerStyle === 'paper' 
+                      ? 'border-white/10 hover:bg-white/5' 
+                      : 'border-white/20 hover:bg-white/5 hover:backdrop-blur-md'
+                  }`}
+                >
+                  {/* Left Column (Habit Name) */}
+                  <td className={`p-3.5 text-xs font-semibold border-r-2 transition-colors ${
+                    trackerStyle === 'paper' 
+                      ? 'font-handwritten text-base text-white/90 border-white/30' 
+                      : 'font-sans text-white/95 border-white/10'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2.5 max-w-[190px]">
+                      <span className="truncate" title={habit.name}>{habit.name}</span>
+                      {habit.isCustom && (confirmDeleteHabitId === habit.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              handleDeleteHabit(habit.id);
+                              setConfirmDeleteHabitId(null);
+                            }}
+                            className="text-[9px] bg-red-500/80 hover:bg-red-500 text-white px-1.5 py-0.5 rounded uppercase font-bold"
+                          >
+                            Del
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteHabitId(null)}
+                            className="text-[9px] bg-neutral-400 hover:bg-white/20 text-white px-1.5 py-0.5 rounded uppercase font-bold"
+                          >
+                            X
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteHabitId(habit.id)}
+                          className={`p-1 rounded transition-colors cursor-pointer shrink-0 ${
+                            trackerStyle === 'paper' 
+                              ? 'hover:bg-white/5 backdrop-blur-md text-white/40 hover:text-white/70' 
+                              : 'hover:bg-white/5 text-white/20 hover:text-white'
+                          }`}
+                          title="Delete habit track"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )
+                    )}
+                    </div>
+                  </td>
+
+                  {/* 1-31 Columns representing status */}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const dayNum = i + 1;
+                    const dateKey = getDateKey(dayNum);
+                    const status = records[dateKey] || 'empty';
+                    const isToday = dayNum === todayDayNum;
+
+                    return (
+                      <td
+                        key={dayNum}
+                        onClick={() => toggleCell(habit.id, dayNum)}
+                        className={`p-2 text-center cursor-pointer transition-all border-r relative hover:bg-black/[0.02] dark:hover:bg-white/5 hover:backdrop-blur-md ${
+                          isToday 
+                            ? trackerStyle === 'paper' ? 'bg-white/5' : 'bg-white/5 backdrop-blur-md' 
+                            : ''
+                        } ${
+                          trackerStyle === 'paper' ? 'border-white/10' : 'border-white/20'
+                        }`}
+                      >
+                        {/* Status Checkmark or Cross with handwriting styling */}
+                        <div className="w-7 h-7 mx-auto flex items-center justify-center select-none">
+                          {status === 'done' && (
+                            trackerStyle === 'paper' ? (
+                              <span className="text-white font-handwritten text-2xl font-bold rotate-[-3deg] filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]">
+                                ✓
+                              </span>
+                            ) : (
+                              <span className="text-white font-mono text-sm font-black drop-shadow-[0_0_6px_rgba(255,255,255,0.4)]">
+                                ✓
+                              </span>
+                            )
+                          )}
+                          {status === 'missed' && (
+                            trackerStyle === 'paper' ? (
+                              <span className="text-white/60/90 font-handwritten text-xl font-medium line-through select-none leading-none rotate-[4deg]">
+                                X
+                              </span>
+                            ) : (
+                              <span className="text-white/30 font-mono text-xs font-semibold line-through select-none">
+                                X
+                              </span>
+                            )
+                          )}
+                          {status === 'empty' && (
+                            <span className="text-white/40 dark:text-white/10 font-mono text-[10px]">·</span>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Bottom utilities: add custom habits, legend, quote signature */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end pt-8">
+        
+        {/* New habit form */}
+        <div className="lg:col-span-4 space-y-2">
+          <form onSubmit={handleAddHabit} className="space-y-1.5">
+            <label 
+              htmlFor="new-habit-input-styled" 
+              className={`block text-[10px] font-mono uppercase tracking-widest ${
+                trackerStyle === 'paper' ? 'text-white/60 font-bold' : 'text-white/40'
+              }`}
+            >
+              Add new habit target
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="new-habit-input-styled"
+                type="text"
+                placeholder="e.g. Read papers, Exercise..."
+                value={newHabitName}
+                onChange={(e) => setNewHabitName(e.target.value)}
+                className={`flex-1 rounded-full px-4 py-2.5 text-xs focus:outline-none transition-all ${
+                  trackerStyle === 'paper' 
+                    ? 'bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder-neutral-400 focus:bg-white/20 focus:border-white/50 font-handwritten text-base' 
+                    : 'bg-transparent border border-white/20 text-white placeholder-white/20 focus:bg-transparent focus:outline-none focus:ring-1 focus:ring-white/30 focus:border-white transition-all font-light'
+                }`}
+              />
+              <button
+                type="submit"
+                disabled={!newHabitName.trim()}
+                className={`px-4 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center active:scale-[0.98] ${
+                  trackerStyle === 'paper'
+                    ? 'bg-transparent border border-white/30 hover:bg-white/5 backdrop-blur-md text-white disabled:opacity-40 disabled:cursor-not-allowed'
+                    : 'bg-white/5 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:bg-white/20 hover:border-white/40 text-white disabled:opacity-30 disabled:cursor-not-allowed'
+                }`}
+                title="Save habit track"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Legend block */}
+        <div className="lg:col-span-4 flex items-center justify-center gap-6 py-3 border-y border-white/10 lg:border-none">
+          <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider opacity-70">
+            <span className={`w-6 h-6 rounded-lg border flex items-center justify-center font-bold text-sm ${
+              trackerStyle === 'paper' 
+                ? 'bg-transparent border-white/20 text-white font-handwritten text-lg' 
+                : 'bg-white/5 backdrop-blur-md border-white/20 shadow-md text-white'
+            }`}>
+              ✓
+            </span>
+            <span>Completed</span>
+          </div>
+          <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider opacity-70">
+            <span className={`w-6 h-6 rounded-lg border flex items-center justify-center text-xs line-through ${
+              trackerStyle === 'paper' 
+                ? 'bg-transparent border-white/20 text-white/60 font-handwritten text-base' 
+                : 'bg-white/5 backdrop-blur-md border-white/20 shadow-md text-white/20'
+            }`}>
+              X
+            </span>
+            <span>Missed</span>
+          </div>
+          <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider opacity-70">
+            <span className={`w-6 h-6 rounded-lg border flex items-center justify-center text-[10px] ${
+              trackerStyle === 'paper' 
+                ? 'bg-transparent border-white/20 text-white/40' 
+                : 'bg-white/5 backdrop-blur-md border-white/20 shadow-md text-white/10'
+            }`}>
+              ·
+            </span>
+            <span>Empty</span>
+          </div>
+        </div>
+
+        {/* Stats card and handdrawn signature */}
+        <div className="lg:col-span-4 flex flex-col items-center lg:items-end text-center lg:text-right space-y-4">
+          
+          {/* Consistency Metrics */}
+          <div className={`p-4 border rounded-2xl w-full max-w-[260px] text-center relative overflow-hidden transition-colors ${
+            trackerStyle === 'paper' 
+              ? 'bg-white/5 backdrop-blur-md border-white/20' 
+              : 'bg-white/5 backdrop-blur-md border-white/20 shadow-lg'
+          }`}>
+            <span className={`font-mono text-[9px] uppercase tracking-widest block mb-2 opacity-50`}>
+              Current Month Consistency
+            </span>
+            <div className="flex items-center justify-around">
+              <div>
+                <span className={`block text-xl font-bold font-mono tabular-nums ${
+                  trackerStyle === 'paper' ? 'text-white' : 'text-white'
+                }`}>{monthlyStats.totalDone}</span>
+                <span className="font-mono text-[8px] uppercase tracking-wider opacity-40">Checks</span>
+              </div>
+              <div className={`h-8 border-l ${
+                trackerStyle === 'paper' ? 'border-white/20' : 'border-white/20'
+              }`} />
+              <div>
+                <span className={`block text-xl font-bold font-mono tabular-nums ${
+                  trackerStyle === 'paper' ? 'text-black' : 'text-white'
+                }`}>{monthlyStats.completionRate}%</span>
+                <span className="font-mono text-[8px] uppercase tracking-wider opacity-40">Success</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Inspirational signature line matching handwritten picture */}
+          <div className="pt-2 select-none">
+            <p className={`italic font-bold tracking-wide ${
+              trackerStyle === 'paper' 
+                ? 'font-handwritten text-2xl text-white/90 leading-tight' 
+                : 'font-serif text-sm text-white/70 tracking-wide'
+            }`}>
+              Discipline today, freedom tomorrow.
+            </p>
+            {trackerStyle === 'paper' ? (
+              <div className="w-40 mt-1 ml-auto mr-auto lg:mr-0 space-y-[2px]">
+                <div className="w-full h-[1.5px] bg-white/60 rounded-full" />
+                <div className="w-[75%] h-[1px] bg-white/40 rounded-full ml-auto" />
+              </div>
+            ) : (
+              <div className="w-32 h-[1px] bg-gradient-to-l from-white/30 to-transparent mt-1 ml-auto" />
+            )}
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+}

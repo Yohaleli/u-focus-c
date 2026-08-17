@@ -1,0 +1,8 @@
+  const handleAddTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newTaskTitle.trim()) {
+      setTasks([...tasks, { id: `t-${Date.now()}`, title: newTaskTitle, durationMinutes: 0 }]);
+      setNewTaskTitle('');
+      setIsAddingTask(false);
+    }
+  };
