@@ -46,15 +46,15 @@ export default defineConfig(() => {
           ]
         },
         manifest: {
-          name: 'UFOCUS - Deep Study Space',
-          short_name: 'UFOCUS',
-          description: 'A comprehensive habit tracking and focus timer application.',
-          theme_color: '#000000',
-          background_color: '#000000',
+          name: 'YouTube — Find something worth watching',
+          short_name: 'YouTube',
+          description: 'Discover videos, music, ideas, and stories worth watching.',
+          theme_color: '#ffffff',
+          background_color: '#ffffff',
           display: 'standalone',
           icons: [
             {
-              src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSI2Ii8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMiIvPjwvc3ZnPg==',
+              src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 24'%3E%3Crect width='32' height='24' rx='7' fill='%23ff0033'/%3E%3Cpath d='M13 7l9 5-9 5z' fill='white'/%3E%3C/svg%3E",
               sizes: '512x512',
               type: 'image/svg+xml'
             }
